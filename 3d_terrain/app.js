@@ -1,16 +1,17 @@
 const map = new maplibregl.Map({
-  container: "map",
-  zoom: 2,
-  center: [0, 20],
-  pitch: 0,
-  bearing: 0,
+  container: "map", // container id
+  //   style: "https://demotiles.maplibre.org/style.json", // style URL
+  center: [0, 20], // starting position [lng, lat]
+  zoom: 2, // starting zoom
+  pitch: 0, // starting pitch
+  bearing: 0, // starting bearing
   style: {
     version: 8,
     sources: {
       satellite: {
         type: "raster",
         tiles: [
-          // "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg",
+          //   "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg",
           //   `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${maptilerApiKey}`,
           "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         ],
@@ -22,9 +23,9 @@ const map = new maplibregl.Map({
       terrainSource: {
         type: "raster-dem",
         tiles: [
-          "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+          //   "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
           //   `https://api.maptiler.com/tiles/terrain-terrarium/{z}/{x}/{y}.png?key=${maptilerApiKey}`,
-          //   "https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=pk.eyJ1Ijoic2psZGZoc2xkZjM0NCIsImEiOiJjbWdmNHFncHcwNGtkMmlxN2llOWJtMDA1In0.fK3BE5274_jxOfjFOgCaSA",
+          `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${mapboxApiKey}`,
         ],
         encoding: "terrarium",
         tileSize: 256,
