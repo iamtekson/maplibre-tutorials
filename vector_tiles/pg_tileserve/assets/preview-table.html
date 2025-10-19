@@ -1,0 +1,212 @@
+<html>
+  <head>
+    <meta charset='utf-8' />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>pg_tileserv: {{.ID}}</title>
+    <script src="https://unpkg.com/maplibre-gl@2.1.9/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@2.1.9/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style type="text/css">
+      body {margin:0;padding:0;font-family:sans-serif;}
+      #map {position:absolute;top:0;bottom:0;left:0;right:0;}
+      #meta {z-index:2;color:black;background:rgba(255,255,255,0.6);position:absolute;top:10;left:20;padding:10 20;margin:0;width:min-content;}
+      #meta h1 {margin:0;}
+      #meta .properties {font-size:90%; width:auto;}
+    </style>
+  </head>
+<body>
+
+  <div id="meta">
+    <h1>{{ .ID }}</h1>
+    {{ if .Description }}
+    <p>{{ .Description }}</p>
+    {{ end }}
+    {{ if .Properties }}
+    <hr/><p class="properties">{{ range $k, $v := .Properties }}{{ $v.Name }} {{ end }}</p>
+    {{ end }}
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+
+    var map;
+    var mapcolor = "blue";
+
+    $.getJSON("{{ .ID }}.json", function(layer) {
+      // A little info for explorers
+      console.log("{{ .ID }}.json");
+      console.log(layer);
+
+      var mapConfig = {
+        'container': 'map',
+        // use 'bounds' or 'center/zoom' but not both at once
+        // 'center': layer['center'],
+        // 'zoom': layer['minzoom'],
+        'bounds': layer['bounds'],
+        'hash': true,
+        'style': {
+          'version': 8,
+          'sources': {
+            'carto-dark': {
+              'type': 'raster',
+              'tiles': [
+                "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+              ]
+            },
+            'carto-light': {
+              'type': 'raster',
+              'tiles': [
+                "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+                "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+                "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+                "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png"
+              ]
+            },
+            'wikimedia': {
+              'type': 'raster',
+              'tiles': [
+                "https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png"
+              ]
+            }
+          },
+          'layers': [{
+            'id': 'carto-light-layer',
+            'source': 'carto-light',
+            // 'id': 'carto-dark-layer',
+            // 'source': 'carto-dark',
+            'type': 'raster',
+            'minzoom': 0,
+            'maxzoom': 22
+          }]
+        }
+      };
+
+      var paints = {
+        "circle":{
+          "circle-color": mapcolor,
+          "circle-radius": 3
+        },
+        "line":{
+          "line-color": mapcolor,
+          "line-width": 1.5
+        },
+        "fill":{
+          "fill-color": mapcolor,
+          "fill-outline-color": mapcolor,
+          "fill-opacity": 0.1
+        }
+      };
+
+      var painttypes = {
+        "Point":"circle",
+        "MultiPoint":"circle",
+        "LineString":"line",
+        "MultiLineString":"line",
+        "Polygon":"fill",
+        "MultiPolygon":"fill",
+      };
+
+      function layerSource(tileurl) {
+        return {
+          "type": "vector",
+          "tiles": [tileurl],
+          "minzoom": layer["minzoom"],
+          "maxzoom": layer["maxzoom"]
+        }
+      };
+
+      function layerId(id, gtype, paint) {
+        return id+"."+gtype+"."+paint;
+      }
+
+      function layerConfig(id, gtype, paint) {
+        return {
+          "id": layerId(id, gtype, paint),
+          "source": id,
+          "source-layer": id,
+          "type": paint,
+          "paint": paints[paint],
+          "filter": ["match", ["geometry-type"], [gtype, "Multi"+gtype], true, false]
+        }
+      };
+
+      // Convert feature properties into html
+      function featureHtml(f) {
+        var sortedPropertyKeys = Object.keys(f.properties).sort((a,b) => a.localeCompare(b))
+        var h = "<p>";
+        sortedPropertyKeys.forEach(k => {
+          h += "<b>" + k + ":</b> " + f.properties[k] + "<br/>"
+        })
+        h += "</p>";
+        return h
+      }
+
+      function addLayerBehavior(id) {
+        // When a click event occurs on a feature in the states layer, open a popup at the
+        // location of the click, with description HTML from its properties.
+        map.on('click', id, function(e) {
+          new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(featureHtml(e.features[0]))
+          .addTo(map);
+        });
+
+        // // Change the cursor to a pointer when the mouse is over the states layer.
+        map.on('mouseenter', id, function() {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+
+        // // Change it back to a pointer when it leaves.
+        map.on('mouseleave', id, function() {
+          map.getCanvas().style.cursor = '';
+        });
+      }
+
+      function addOneLayer(id, gtypebasic) {
+        map.addLayer(layerConfig(id, gtypebasic, painttypes[gtypebasic]));
+        addLayerBehavior(layerId(id, gtypebasic, painttypes[gtypebasic]));
+        if (gtypebasic == "Polygon") {
+          map.addLayer(layerConfig(id, gtypebasic, "line"));
+        }
+      }
+
+      function addLayers(id, gtype, url) {
+        map.addSource(id, layerSource(url));
+        var gtypebasic = gtype.replace("Multi", "");
+        var gtypes = ["Point", "LineString", "Polygon"];
+        // add just one renderer for known types
+        if (gtypes.includes(gtypebasic)) {
+          addOneLayer(id, gtypebasic);
+        }
+        // add all renderers for unknown types (eg: geometry)
+        else {
+          gtypes.forEach(gt => {
+            addOneLayer(id, gt);
+          });
+        }
+
+      }
+
+      // set up the mapbox gl js map object
+      map = new maplibregl.Map(mapConfig);
+      map.addControl(new maplibregl.NavigationControl());
+      map.on("load", function() {
+        // pass query params thru to tile requests
+        queryParam = new URLSearchParams(window.location.search).toString();
+        if (queryParam.length <= 1) {
+          queryParam = "";
+        }
+        tileUrl = layer["tileurl"] + "?" + queryParam;
+        addLayers(layer["id"], layer["geometrytype"], tileUrl);
+      });
+
+    });
+
+  </script>
+
+</body>
+</html>
