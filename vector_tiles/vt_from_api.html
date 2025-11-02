@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>USA Population Map</title>
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <link
+      href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body,
+      #map {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .mapboxgl-popup {
+        max-width: 300px;
+        font: 12px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script>
+      const map = new maplibregl.Map({
+        container: "map",
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            },
+            us_population: {
+              type: "vector",
+              tiles: ["http://localhost:8000/us_population/vt/{z}/{x}/{y}.mvt"],
+              minzoom: 0,
+              maxzoom: 14,
+            },
+          },
+          layers: [
+            {
+              id: "osm-basemap",
+              type: "raster",
+              source: "osm",
+            },
+            {
+              id: "us_population-fill",
+              type: "fill",
+              source: "us_population",
+              "source-layer": "us_population",
+              paint: { "fill-color": "#0080ff", "fill-opacity": 0.4 },
+            },
+            {
+              id: "us_population-outline",
+              type: "line",
+              source: "us_population",
+              "source-layer": "us_population",
+              paint: { "line-color": "#004080", "line-width": 0.5 },
+            },
+          ],
+        },
+        center: [-98, 39],
+        zoom: 4,
+      });
+
+      // Add popup on click
+      map.on("click", "us_population-fill", (e) => {
+        const feature = e.features[0];
+        const props = feature.properties;
+
+        const html = `
+        <strong>Attributes:</strong><br/>
+        <table>
+          ${Object.entries(props)
+            .map(
+              ([k, v]) => `
+            <tr><td><b>${k}</b></td><td>${v}</td></tr>
+          `
+            )
+            .join("")}
+        </table>
+      `;
+
+        new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+
+      map.on(
+        "mouseenter",
+        "us_population-fill",
+        () => (map.getCanvas().style.cursor = "pointer")
+      );
+      map.on(
+        "mouseleave",
+        "us_population-fill",
+        () => (map.getCanvas().style.cursor = "")
+      );
+    </script>
+  </body>
+</html>
