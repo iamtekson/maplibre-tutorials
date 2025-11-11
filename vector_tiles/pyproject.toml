@@ -12,6 +12,7 @@ dependencies = [
     "geoalchemy2>=0.18.0",
     "geopandas>=1.1.1",
     "psycopg2-binary>=2.9.11",
+    "pyarrow>=22.0.0",
     "sqlalchemy>=2.0.44",
     "uvicorn>=0.37.0",
 ]

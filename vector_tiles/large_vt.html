@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MapLibre + PostGIS Vector Tiles + OSM Basemap</title>
+    <link
+      href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        width: 100%;
+        height: 100vh;
+      }
+      .menu {
+        position: absolute;
+        background: white;
+        padding: 8px;
+        font-family: sans-serif;
+        top: 10px;
+        right: 10px;
+        z-index: 2;
+        border-radius: 4px;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+      }
+      .menu label {
+        display: block;
+      }
+      .legend {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: white;
+        padding: 8px;
+        border-radius: 4px;
+        font-family: sans-serif;
+        font-size: 12px;
+        max-height: 150px;
+        overflow-y: auto;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+      }
+      .legend div {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .legend span {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin-right: 6px;
+        border: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="menu">
+      <label><input type="checkbox" id="roads" checked /> Roads</label>
+      <label><input type="checkbox" id="wetlands" checked /> Wetlands</label>
+      <label><input type="checkbox" id="states" checked /> States</label>
+    </div>
+    <div class="legend" id="legend"><b>Wetland Types</b></div>
+
+    <script>
+      // Generate dark random color
+      function randomDarkColor() {
+        const r = Math.floor(30 + Math.random() * 120);
+        const g = Math.floor(50 + Math.random() * 120);
+        const b = Math.floor(50 + Math.random() * 120);
+        return `rgb(${r},${g},${b})`;
+      }
+
+      const wetlandColors = {};
+
+      const map = new maplibregl.Map({
+        container: "map",
+        center: [-100, 40],
+        zoom: 3,
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              attribution: "&copy; OpenStreetMap contributors",
+            },
+            roads_source: {
+              type: "vector",
+              tiles: [
+                "http://localhost:7800/public.ne_10m_roads_north_america/{z}/{x}/{y}.pbf",
+              ],
+              minzoom: 0,
+              maxzoom: 14,
+            },
+            wetlands_source: {
+              type: "vector",
+              tiles: [
+                "http://localhost:7800/public.ri_wetlands/{z}/{x}/{y}.pbf",
+              ],
+              minzoom: 0,
+              maxzoom: 14,
+            },
+            states_source: {
+              type: "vector",
+              tiles: [
+                "http://localhost:7800/public.us_population/{z}/{x}/{y}.pbf",
+              ],
+              minzoom: 0,
+              maxzoom: 14,
+            },
+          },
+          layers: [
+            { id: "osm-layer", type: "raster", source: "osm" },
+            {
+              id: "states-layer",
+              type: "fill",
+              source: "states_source",
+              "source-layer": "public.us_population",
+              paint: {
+                "fill-color": "#999999",
+                "fill-opacity": 0.5,
+                "fill-outline-color": "#666",
+              },
+            },
+            {
+              id: "wetlands-layer",
+              type: "fill",
+              source: "wetlands_source",
+              "source-layer": "public.ri_wetlands",
+              paint: {
+                "fill-color": "#cccccc",
+                "fill-opacity": 0.8,
+                "fill-outline-color": "#000000",
+              },
+            },
+            {
+              id: "roads-layer",
+              type: "line",
+              source: "roads_source",
+              "source-layer": "public.ne_10m_roads_north_america",
+              paint: {
+                "line-color": [
+                  "match",
+                  ["get", "type"],
+                  "Motorway",
+                  "#ff4b4b",
+                  "Primary",
+                  "#ff9c33",
+                  "Secondary",
+                  "#f2e93f",
+                  "Tertiary",
+                  "#a1e95b",
+                  "Track",
+                  "#6de3db",
+                  "Other",
+                  "#51b6ff",
+                  "#cccccc",
+                ],
+                "line-width": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  4,
+                  0.6,
+                  10,
+                  2,
+                  14,
+                  4,
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+      // --- Popups for all layers
+      function addPopup(layerId) {
+        map.on("click", layerId, (e) => {
+          const f = e.features[0];
+          const props = Object.entries(f.properties)
+            .map(([k, v]) => `<b>${k}</b>: ${v}`)
+            .join("<br>");
+          new maplibregl.Popup().setLngLat(e.lngLat).setHTML(props).addTo(map);
+        });
+        map.on(
+          "mouseenter",
+          layerId,
+          () => (map.getCanvas().style.cursor = "pointer")
+        );
+        map.on(
+          "mouseleave",
+          layerId,
+          () => (map.getCanvas().style.cursor = "")
+        );
+      }
+
+      addPopup("roads-layer");
+      addPopup("wetlands-layer");
+      addPopup("states-layer");
+
+      // --- Toggle visibility
+      function toggleLayer(layerId, visible) {
+        map.setLayoutProperty(
+          layerId,
+          "visibility",
+          visible ? "visible" : "none"
+        );
+      }
+      document
+        .getElementById("roads")
+        .addEventListener("change", (e) =>
+          toggleLayer("roads-layer", e.target.checked)
+        );
+      document
+        .getElementById("wetlands")
+        .addEventListener("change", (e) =>
+          toggleLayer("wetlands-layer", e.target.checked)
+        );
+      document
+        .getElementById("states")
+        .addEventListener("change", (e) =>
+          toggleLayer("states-layer", e.target.checked)
+        );
+
+      // --- Assign dark random colors to wetland types dynamically
+      map.on("sourcedata", (e) => {
+        if (e.sourceId !== "wetlands_source" || !e.isSourceLoaded) return;
+
+        const features = map.querySourceFeatures("wetlands_source", {
+          sourceLayer: "public.ri_wetlands",
+        });
+
+        const legendDiv = document.getElementById("legend");
+
+        features.forEach((f) => {
+          const type = f.properties.WETLAND_TYPE || "Unknown";
+          if (!wetlandColors[type]) {
+            const color = randomDarkColor();
+            wetlandColors[type] = color;
+            const div = document.createElement("div");
+            div.innerHTML = `<span style="background:${color}"></span>${type}`;
+            legendDiv.appendChild(div);
+          }
+        });
+
+        // MapLibre color expression
+        const expr = ["match", ["get", "WETLAND_TYPE"]];
+        for (const [type, color] of Object.entries(wetlandColors)) {
+          expr.push(type, color);
+        }
+        expr.push("#333333");
+
+        if (map.getLayer("wetlands-layer")) {
+          map.setPaintProperty("wetlands-layer", "fill-color", expr);
+          map.setPaintProperty(
+            "wetlands-layer",
+            "fill-outline-color",
+            "#000000"
+          );
+        }
+      });
+    </script>
+  </body>
+</html>
